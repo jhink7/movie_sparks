@@ -1,4 +1,5 @@
 from flask import Blueprint
+from time import time
 
 rec_engine_app = Blueprint('rec_engine_app', __name__)
 
@@ -45,12 +46,35 @@ def add_ratings(user_id):
     # get the ratings from the Flask POST request object
     ratings_list = request.form.keys()[0].strip().split("\n")
     ratings_list = map(lambda x: x.split(","), ratings_list)
-    # create a list with the format required by the negine (user_id, movie_id, rating)
+    # create a list with the format required by the rec engine (user_id, movie_id, rating)
     ratings = map(lambda x: (user_id, int(x[0]), float(x[1])), ratings_list)
     # add them to the model using then engine API
     recommendation_engine.add_ratings(ratings)
 
     return json.dumps(ratings)
+
+@rec_engine_app.route("/engine/reload-and-retrain", methods=["POST"])
+def reload_retrain():
+    try:
+        post_data = request.get_json()
+
+        if ('rank' in post_data) and ('seed' in post_data) and ('num_iterations' in post_data) and 'reg' in post_data:
+            rank = post_data['rank']
+            seed = post_data['seed']
+            num_iterations = post_data['num_iterations']
+            reg = post_data['reg']
+
+            t0 = time()
+            recommendation_engine.reload_and_retrain(rank, seed, num_iterations, reg)
+            train_time = time() - t0
+            return jsonify({'retrained': True, 'trainingTime': train_time})
+
+    except Exception as ex:
+        if "Bad Request" in str(ex):
+            abort(400)
+        else:
+            logger.error(str(ex))
+            abort(500)
 
 
 def create_app(spark_context, dataset_path):

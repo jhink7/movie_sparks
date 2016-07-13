@@ -70,43 +70,61 @@ class RecommendationEngine:
 
         return rat_hat
 
-    def __load_data(self, path):
+    def __load_data(self):
         # load ratings data
         logger.info("Loading Data...")
-        rat_path = os.path.join(path, 'ratings.csv')
-        raw_RDD = self.sc.textFile(rat_path)
-        header_rat = raw_RDD.take(1)[0]
-        self.ratings_RDD = raw_RDD.filter(lambda line: line != header_rat) \
+        rat_path = os.path.join(self.data_root, 'ratings.csv')
+        rat_raw_RDD = self.sc.textFile(rat_path)
+        header_rat = rat_raw_RDD.take(1)[0]
+        ratings_RDD = rat_raw_RDD.filter(lambda line: line != header_rat) \
             .map(lambda line: line.split(",")).map(
             lambda tokens: (int(tokens[0]), int(tokens[1]), float(tokens[2]))).cache()
 
         # load movies data for later use
-        movie_path = os.path.join(path, 'movies.csv')
+        movie_path = os.path.join(self.data_root, 'movies.csv')
         movies_raw_RDD = self.sc.textFile(movie_path)
         header_movie = movies_raw_RDD.take(1)[0]
-        self.movies_RDD = movies_raw_RDD.filter(lambda line: line != header_movie) \
+        movies_RDD = movies_raw_RDD.filter(lambda line: line != header_movie) \
             .map(lambda line: line.split(",")).map(lambda m: (int(m[0]), m[1], m[2])).cache()
-        self.movies_titles_RDD = self.movies_RDD.map(lambda m: (int(m[0]), m[1])).cache()
+        movies_titles_RDD = movies_RDD.map(lambda m: (int(m[0]), m[1])).cache()
+
+        return ratings_RDD, movies_RDD, movies_titles_RDD
+
+    def reload_and_retrain(self, rank=8, seed=5L, num_iterations=15, reg=0.1):
+        try:
+            # Load intial training data
+            ratings_RDD, movies_RDD, movies_titles_RDD = self.__load_data()
+            # Train the intial model
+            model = self.__train_model(rank, seed, num_iterations, reg)
+
+            self.ratings_RDD = ratings_RDD
+            self.movies_RDD = movies_RDD
+            self.movies_titles_RDD = movies_titles_RDD
+            self.model = model
+        except Exception:
+            logger.error("Error reloading data")
+            raise Exception("Error reloading data")
 
 
-    def __train_model(self):
+    def __train_model(self, rank, seed, iterations, reg):
         logger.info("Training Movie Rec Engine (ALS)...")
-        self.model = ALS.train(self.ratings_RDD, self.rank, seed=self.seed,
-                               iterations=self.iterations, lambda_=self.regularization_parameter)
+        self.model = ALS.train(self.ratings_RDD, rank, seed=seed,
+                               iterations=iterations, lambda_=reg)
         logger.info("Movie Rec Engine Trained!")
 
-    def __init__(self, sc, dataset_path):
+    def __init__(self, sc, data_root):
 
         # set the spark contex to that created at the web server layer
         self.sc = sc
 
-        # set tweakable ALS parameters
-        self.rank = 8
-        self.seed = 5L
-        self.iterations = 15
-        self.regularization_parameter = 0.1
+        # set initial tweakable ALS parameters
+        rank = 8
+        seed = 5L
+        num_iterations = 15
+        reg = 0.1
+        self.data_root = data_root
 
-        self.__load_data(dataset_path)
+        self.ratings_RDD, self.movies_RDD, self.movies_titles_RDD = self.__load_data()
         self.__summarize_ratings()
         # trigger the training of our actual model
-        self.__train_model()
+        self.__train_model(rank, seed, num_iterations, reg)
