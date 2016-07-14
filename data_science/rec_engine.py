@@ -38,10 +38,9 @@ class RecommendationEngine:
         # Add new movie rating to the system
         new_ratings_RDD = self.sc.parallelize(ratings)
         self.ratings_RDD = self.ratings_RDD.union(new_ratings_RDD)
-        self.__summarize_ratings()
-        self.__train_model()
-
-        return ratings
+        self.movies_rating_counts_RDD = self.__summarize_ratings(self.ratings_RDD)
+        self.model = self.__train_model(self.rank, self.seed, self.iterations, self.reg)
+        return True
 
     def get_movie_rating_by_user(self, user_id, movie_ids):
         requested_movies_RDD = self.sc.parallelize(movie_ids)\
@@ -54,7 +53,7 @@ class RecommendationEngine:
     def get_top_ratings_by_user(self, user_id, num_recs):
 
         # required ratings count for movie to be included in our algo
-        min_rats_required = 10
+        min_rats_required = 12
 
         # gather only movies that have not been rated (seen) by the current user
         # note this assumes that users have rated every movie they've seen.  This is obviously flimsy
@@ -114,6 +113,12 @@ class RecommendationEngine:
         model = ALS.train(self.ratings_RDD, rank, seed=seed,
                                iterations=iterations, lambda_=reg)
         logger.info("Movie Rec Engine Trained!")
+
+        self.rank = rank
+        self.seed = seed
+        self.iterations = iterations
+        self.reg = reg
+
         return model
 
     def __init__(self, sc, data_root):

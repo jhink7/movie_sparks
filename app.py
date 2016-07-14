@@ -42,16 +42,25 @@ def top_ratings(user_id):
 
 
 @rec_engine_app.route("/<int:user_id>/ratings", methods=["POST"])
-def add_ratings(user_id):
-    # get the ratings from the Flask POST request object
-    ratings_list = request.form.keys()[0].strip().split("\n")
-    ratings_list = map(lambda x: x.split(","), ratings_list)
-    # create a list with the format required by the rec engine (user_id, movie_id, rating)
-    ratings = map(lambda x: (user_id, int(x[0]), float(x[1])), ratings_list)
-    # add them to the model using then engine API
-    recommendation_engine.add_ratings(ratings)
+def add_rating(user_id):
+    try:
+        post_data = request.get_json()
 
-    return json.dumps(ratings)
+        if ('movieId' in post_data) and ('rating' in post_data):
+            movie_id = post_data['movieId']
+            rating = post_data['rating']
+
+            new_movie_rating = [(user_id, int(movie_id), float(rating))]
+            retval = recommendation_engine.add_ratings(new_movie_rating)
+
+            return jsonify({'retrain_success': retval})
+
+    except Exception as ex:
+        if "Bad Request" in str(ex):
+            abort(400)
+        else:
+            logger.error(str(ex))
+            abort(500)
 
 @rec_engine_app.route("/engine/reload-and-retrain", methods=["POST"])
 def reload_retrain():
