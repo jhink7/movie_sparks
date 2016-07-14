@@ -95,7 +95,7 @@ class RecommendationEngine:
         try:
             # Load intial training data
             ratings_RDD, movies_RDD, movies_titles_RDD = self.__load_data()
-            self.__summarize_ratings(ratings_RDD)
+            self.movies_rating_counts_RDD = self.__summarize_ratings(ratings_RDD)
             # Train the intial model
             model = self.__train_model(rank, seed, num_iterations, reg)
 
@@ -129,8 +129,8 @@ class RecommendationEngine:
         # set initial tweakable ALS parameters
         rank = 8
         seed = 5L
-        num_iterations = 15
-        reg = 0.1
+        num_iterations = 20
+        reg = 0.15
         self.data_root = data_root
 
         self.ratings_RDD, self.movies_RDD, self.movies_titles_RDD = self.__load_data()
