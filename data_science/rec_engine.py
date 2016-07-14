@@ -1,4 +1,5 @@
 import os
+import numpy as np
 from pyspark.mllib.recommendation import ALS
 
 import logging
@@ -23,10 +24,17 @@ class RecommendationEngine:
         return movies_rating_counts_RDD
 
     def __predict_ratings(self, user_and_movie_RDD):
+        MAX_RATING = 5.0
+
+        # if differential privacy is enabled in the app, we'll add noise to our ratings
+        # outputs will be stochastic
+        noise = 0
+        if self.use_diff_priv:
+            noise = 0.1
 
         # Gets predicted ratings for a userid, movieid combo
         pred_rdd = self.model.predictAll(user_and_movie_RDD)
-        pred_rating_RDD = pred_rdd.map(lambda x: (x.product, x.rating))
+        pred_rating_RDD = pred_rdd.map(lambda x: (x.product, min(np.random.normal(x.rating, noise), MAX_RATING)))
         predicted_rating_title_and_count_RDD = \
             pred_rating_RDD.join(self.movies_titles_RDD).join(self.movies_rating_counts_RDD)
         predicted_rating_title_and_count_RDD = \
@@ -121,7 +129,7 @@ class RecommendationEngine:
 
         return model
 
-    def __init__(self, sc, data_root):
+    def __init__(self, sc, data_root, use_diff_priv):
 
         # set the spark contex to that created at the web server layer
         self.sc = sc
@@ -131,6 +139,7 @@ class RecommendationEngine:
         seed = 5L
         num_iterations = 20
         reg = 0.16
+        self.use_diff_priv = use_diff_priv
         self.data_root = data_root
 
         self.ratings_RDD, self.movies_RDD, self.movies_titles_RDD = self.__load_data()

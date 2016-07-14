@@ -36,7 +36,7 @@ if __name__ == "__main__":
     sc = init_spark_context()
     #data_root = os.path.join('data/extracted', 'ml-latest-small')
     data_root = 'data/extracted/ml-latest-small'
-    app = create_app(sc, data_root)
+    app = create_app(sc, data_root, True)
 
     # start web server
     run_server(app)

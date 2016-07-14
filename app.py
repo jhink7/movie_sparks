@@ -86,10 +86,10 @@ def reload_retrain():
             abort(500)
 
 
-def create_app(spark_context, dataset_path):
+def create_app(spark_context, dataset_path, use_diff_priv):
     global recommendation_engine
 
-    recommendation_engine = RecommendationEngine(spark_context, dataset_path)
+    recommendation_engine = RecommendationEngine(spark_context, dataset_path, use_diff_priv)
 
     app = Flask(__name__)
     app.register_blueprint(rec_engine_app)
