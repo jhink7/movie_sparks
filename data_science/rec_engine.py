@@ -15,11 +15,12 @@ def get_movie_summary_metrics(ratings):
 
 class RecommendationEngine:
 
-    def __summarize_ratings(self):
+    def __summarize_ratings(self, ratings_RDD):
         # Update counts for current data
-        movie_ID_with_ratings_RDD = self.ratings_RDD.map(lambda x: (x[1], x[2])).groupByKey()
+        movie_ID_with_ratings_RDD = ratings_RDD.map(lambda x: (x[1], x[2])).groupByKey()
         movie_ID_with_avg_ratings_RDD = movie_ID_with_ratings_RDD.map(get_movie_summary_metrics)
-        self.movies_rating_counts_RDD = movie_ID_with_avg_ratings_RDD.map(lambda x: (x[0], x[1][0]))
+        movies_rating_counts_RDD = movie_ID_with_avg_ratings_RDD.map(lambda x: (x[0], x[1][0]))
+        return movies_rating_counts_RDD
 
     def __predict_ratings(self, user_and_movie_RDD):
 
@@ -74,13 +75,14 @@ class RecommendationEngine:
         # load ratings data
         logger.info("Loading Data...")
         rat_path = os.path.join(self.data_root, 'ratings.csv')
+        print rat_path
         rat_raw_RDD = self.sc.textFile(rat_path)
         header_rat = rat_raw_RDD.take(1)[0]
         ratings_RDD = rat_raw_RDD.filter(lambda line: line != header_rat) \
-            .map(lambda line: line.split(",")).map(
-            lambda tokens: (int(tokens[0]), int(tokens[1]), float(tokens[2]))).cache()
+            .map(lambda line: line.split(","))\
+            .map(lambda seg: (int(seg[0]), int(seg[1]), float(seg[2]))).cache()
 
-        # load movies data for later use
+        # load movies data
         movie_path = os.path.join(self.data_root, 'movies.csv')
         movies_raw_RDD = self.sc.textFile(movie_path)
         header_movie = movies_raw_RDD.take(1)[0]
@@ -94,6 +96,7 @@ class RecommendationEngine:
         try:
             # Load intial training data
             ratings_RDD, movies_RDD, movies_titles_RDD = self.__load_data()
+            self.__summarize_ratings(ratings_RDD)
             # Train the intial model
             model = self.__train_model(rank, seed, num_iterations, reg)
 
@@ -108,9 +111,10 @@ class RecommendationEngine:
 
     def __train_model(self, rank, seed, iterations, reg):
         logger.info("Training Movie Rec Engine (ALS)...")
-        self.model = ALS.train(self.ratings_RDD, rank, seed=seed,
+        model = ALS.train(self.ratings_RDD, rank, seed=seed,
                                iterations=iterations, lambda_=reg)
         logger.info("Movie Rec Engine Trained!")
+        return model
 
     def __init__(self, sc, data_root):
 
@@ -125,6 +129,6 @@ class RecommendationEngine:
         self.data_root = data_root
 
         self.ratings_RDD, self.movies_RDD, self.movies_titles_RDD = self.__load_data()
-        self.__summarize_ratings()
+        self.movies_rating_counts_RDD = self.__summarize_ratings(self.ratings_RDD)
         # trigger the training of our actual model
-        self.__train_model(rank, seed, num_iterations, reg)
+        self.model = self.__train_model(rank, seed, num_iterations, reg)
