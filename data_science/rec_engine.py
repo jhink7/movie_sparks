@@ -130,7 +130,7 @@ class RecommendationEngine:
         rank = 8
         seed = 5L
         num_iterations = 20
-        reg = 0.15
+        reg = 0.16
         self.data_root = data_root
 
         self.ratings_RDD, self.movies_RDD, self.movies_titles_RDD = self.__load_data()
