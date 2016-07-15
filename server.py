@@ -34,8 +34,7 @@ def run_server(app):
 if __name__ == "__main__":
     # Init spark context and load libraries
     sc = init_spark_context()
-    #data_root = os.path.join('data/extracted', 'ml-latest-small')
-    data_root = 'data/extracted/ml-latest-small'
+    data_root = 'data/toy'#'data/extracted/ml-latest-small'
     app = create_app(sc, data_root, True)
 
     # start web server

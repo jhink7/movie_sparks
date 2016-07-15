@@ -26,15 +26,16 @@ class RecommendationEngine:
     def __predict_ratings(self, user_and_movie_RDD):
         MAX_RATING = 5.0
 
-        # if differential privacy is enabled in the app, we'll add noise to our ratings
-        # outputs will be stochastic
-        noise = 0
-        if self.use_diff_priv:
-            noise = 0.1
-
         # Gets predicted ratings for a userid, movieid combo
         pred_rdd = self.model.predictAll(user_and_movie_RDD)
-        pred_rating_RDD = pred_rdd.map(lambda x: (x.product, min(np.random.normal(x.rating, noise), MAX_RATING)))
+
+        # if differential privacy is enabled in the app, we'll add noise to our ratings
+        # outputs will be stochastic
+        if self.use_diff_priv:
+            noise = 0.1
+            pred_rating_RDD = pred_rdd.map(lambda x: (x.product, min(np.random.normal(x.rating, noise), MAX_RATING)))
+        else:
+            pred_rating_RDD = pred_rdd.map(lambda x: (x.product, min(x.rating, MAX_RATING)))
         predicted_rating_title_and_count_RDD = \
             pred_rating_RDD.join(self.movies_titles_RDD).join(self.movies_rating_counts_RDD)
         predicted_rating_title_and_count_RDD = \
@@ -94,7 +95,7 @@ class RecommendationEngine:
         movies_raw_RDD = self.sc.textFile(movie_path)
         header_movie = movies_raw_RDD.take(1)[0]
         movies_RDD = movies_raw_RDD.filter(lambda line: line != header_movie) \
-            .map(lambda line: line.split(",")).map(lambda m: (int(m[0]), m[1], m[2])).cache()
+            .map(lambda line: line.split(",")).map(lambda m: (int(m[0]), m[1])).cache()
         movies_titles_RDD = movies_RDD.map(lambda m: (int(m[0]), m[1])).cache()
 
         return ratings_RDD, movies_RDD, movies_titles_RDD
@@ -137,7 +138,7 @@ class RecommendationEngine:
         # set initial tweakable ALS parameters
         rank = 8
         seed = 5L
-        num_iterations = 20
+        num_iterations = 10
         reg = 0.16
         self.use_diff_priv = use_diff_priv
         self.data_root = data_root
