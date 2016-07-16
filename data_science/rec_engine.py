@@ -59,10 +59,14 @@ class RecommendationEngine:
 
         return ratings
 
-    def get_top_ratings_by_user(self, user_id, num_recs):
+    def get_top_ratings_by_user(self, user_id):
 
         # required ratings count for movie to be included in our algo
         min_rats_required = 12
+
+        # number of top recommendations to return.
+        # TODO:  Make this a configurable value
+        num_recs = 5
 
         # gather only movies that have not been rated (seen) by the current user
         # note this assumes that users have rated every movie they've seen.  This is obviously flimsy

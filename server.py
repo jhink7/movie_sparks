@@ -9,9 +9,9 @@ from pyspark import SparkContext, SparkConf
 def init_spark_context():
     # load spark context
     conf = SparkConf().setAppName("movie_recommendation-server")
-    # IMPORTANT: pass aditional Python modules to each worker
     sc = SparkContext(conf=conf, pyFiles=['data_science/rec_engine.py', 'app.py'])
 
+    # quiet chatty spark logs
     logger = sc._jvm.org.apache.log4j
     logger.LogManager.getLogger("org").setLevel(logger.Level.ERROR)
     logger.LogManager.getLogger("akka").setLevel(logger.Level.ERROR)
@@ -34,7 +34,8 @@ def run_server(app):
 if __name__ == "__main__":
     # Init spark context and load libraries
     sc = init_spark_context()
-    data_root = 'data/toy'#'data/extracted/ml-latest-small'
+    data_root = 'data/toy'
+    #data_root = 'data/extracted/ml-latest-small'
     app = create_app(sc, data_root, True)
 
     # start web server

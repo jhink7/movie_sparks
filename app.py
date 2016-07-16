@@ -35,7 +35,7 @@ def movie_ratings(user_id, movie_id):
 @rec_engine_app.route("/api/v1/<int:user_id>/ratings/top", methods=["GET"])
 def top_ratings(user_id):
     try:
-        recs = recommendation_engine.get_top_ratings_by_user(user_id, 10)
+        recs = recommendation_engine.get_top_ratings_by_user(user_id)
         return jsonify({'recs': recs})
     except Exception as ex:
         abort(500)
