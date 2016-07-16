@@ -23,7 +23,7 @@ def not_found(error):
     return make_response(jsonify({'error': 'Server Error'}), 500)
 
 
-@rec_engine_app.route("/<int:user_id>/ratings/<int:movie_id>", methods=["GET"])
+@rec_engine_app.route("/api/v1/<int:user_id>/ratings/<int:movie_id>", methods=["GET"])
 def movie_ratings(user_id, movie_id):
     try:
         rating = recommendation_engine.get_movie_rating_by_user(user_id, [movie_id])
@@ -32,7 +32,7 @@ def movie_ratings(user_id, movie_id):
         abort(500)
 
 
-@rec_engine_app.route("/<int:user_id>/ratings/top", methods=["GET"])
+@rec_engine_app.route("/api/v1/<int:user_id>/ratings/top", methods=["GET"])
 def top_ratings(user_id):
     try:
         recs = recommendation_engine.get_top_ratings_by_user(user_id, 10)
@@ -41,7 +41,7 @@ def top_ratings(user_id):
         abort(500)
 
 
-@rec_engine_app.route("/<int:user_id>/ratings", methods=["POST"])
+@rec_engine_app.route("/api/v1/<int:user_id>/ratings", methods=["POST"])
 def add_rating(user_id):
     try:
         post_data = request.get_json()
@@ -62,7 +62,7 @@ def add_rating(user_id):
             logger.error(str(ex))
             abort(500)
 
-@rec_engine_app.route("/engine/reload-and-retrain", methods=["POST"])
+@rec_engine_app.route("/api/v1/engine/reload-and-retrain", methods=["POST"])
 def reload_retrain():
     try:
         post_data = request.get_json()
