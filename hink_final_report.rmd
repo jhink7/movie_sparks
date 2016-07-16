@@ -1,0 +1,329 @@
+---
+title: "Data 643 - Final Project"
+author: "Justin Hink"
+date: "Thursday, July 14, 2016"
+output: pdf_document
+---
+
+```{r load-data, echo=FALSE, eval=TRUE, results='hide',message=FALSE}
+library(plyr)
+library(knitr)
+library(knitcitations)
+library(RefManageR)
+library(stargazer)
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(XLConnect)
+library(reshape2)
+
+library(grid)
+library(pROC)
+
+cleanbib()
+cite_options(style="markdown")
+
+# My ggplot theme
+myTheme <- theme(axis.ticks=element_blank(),
+                 axis.title=element_text(size="10"),
+                  panel.border = element_rect(color="gray", fill=NA), 
+                  panel.background=element_rect(fill="#FBFBFB"), 
+                  panel.grid.major.y=element_line(color="white", size=0.5), 
+                  panel.grid.major.x=element_line(color="white", size=0.5),
+                  plot.title=element_text(size="10"))
+
+setwd('C:/CUNY/IS643 - Recommender Systems/final_proj')
+
+getwd()
+
+df<- read.csv('evals.csv')
+
+# Function that returns Root Mean Squared Error
+rmse <- function(error)
+{
+  sqrt(mean(error^2))
+}
+
+# Function that returns Mean Absolute Error
+mae <- function(error)
+{
+  mean(abs(error))
+}
+
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  require(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+
+```
+## 1 Introduction
+The ability to predict user preferences and suggest appealing products to them is a key problem in the world of practical data science.  One of the most obvious product categories that can benefit from a useful recommendation engine is movies/film/videos.  Throughout the term I've examined this problem space with incrementally more mature solutions.  For this project, I took that exercise to it's logical conclusion and build a complete system using the most modern Python libraries available for this task.
+
+One new unique feature that was added, as the implementation of a basic differential privacy to protect user's preferences and system profile.
+
+## 2 Code
+
+Please see the github repo that contains all source for the recommendation engine (python) itself and the algo evaluation code (R):
+
+https://github.com/jhink7/movie_sparks
+
+### Running the application
+
+During development it was found tricky to get Spark and CherryPy to work with virtual environments (the preferred method for Flask development).  As such, if you would like to run the code, system python with appropriate dependencies installed (flask, numpy, cherrypy, spark, py4j) is probably the line of least resistance.
+
+To run the application run the following command (if run in the same directory as server.py)
+
+```{bash, eval=FALSE}
+    spark-submit server.py
+```
+
+The application will start up on localhost on port 8080.  Please see cherrypy's documentation if the default port creates a conflict on your system.
+
+## 3 Data
+
+The dataset used for this exercise can be completely fabricated. The values within do not represent anything real.
+
+However, the structure of the data should be similar to what you might see in a real world application.  Note that the following data structure has been used throughout the term (project's 1 to 3) and will be appropriate for this project as well.
+
+### Users
+
+var    | description                                      
+-------| ------------------------------------------------ 
+`id`   | A simple integer id for a user            
+`name` | Name of the user     
+
+### Movies
+
+var     | description                                      
+--------| ------------------------------------------------ 
+`movie_id`    | A simple integer id for a movie            
+`title` | Name of the movie  
+
+
+### Ratings
+
+var       | description                                      
+----------| ------------------------------------------------ 
+`id`      | A simple integer id for a movie            
+`user_id` | An integer id of the user making the rating
+`movie_id`| An integer id of the move being rated
+`rating`  | The rating for the movie (integers from 1 to 5 inclusive)
+
+I've also run the system with sample MovieLens data to ensure things would operate on a larger data set.  I've included the MovieLens data in the code repo for convenience.  To switch to MovieLens data, adjust the dataset path accordingly in server.py (I've left the appropriate path to the MovieLens data commented out).
+
+## 4 Algorithm
+
+### Core 
+
+The core algorithm used in this project is MLib's Alternating Least Squares algorithm. Despite having coded up a working solution to this algorithm in project 3, I wanted to leave this project in an extensible, scalable state.  To do that, leveraging Apache Spark is the obvious way to accomplish that.
+
+### Differential Privacy (DP)
+
+The differential privacy mechanism used is a simple injection of Gaussian noise to all predicted movie ratings on each subsequent request.  This will cause non deterministic predictions to be generated for a given user/movie combination.  For example, one prediction request for user17 and movie36 might return a rating of 3.6 while the next might return a rating of 3.9 or 3.2.  This non-determinism helps protect user preferences in a very real way.
+
+There is an obvious tradeoff at play here.  The more noise injected into the predictions, the more randomness (and privacy) you get.  However that comes at the cost of reducing overall efficacy of the prediction algorithm.  The amount of noise injected into the process is a tweakable value and I've settled on a value that seems to work well.  Later sections will show the difference in effectiveness of the ALS algorithm with DP turned on and off.
+
+## 5 APIs
+
+The system has the following RESTful endpoints.
+
+### GET /api/v1/{user_id}/ratings/{movie_id}
+ 
+This API takes specific user IDs, movie IDs and returns a predicted rating in the following JSON structure
+ 
+```{JSON, eval=FALSE}
+{
+  "rating": [
+    [
+      "title77", 
+      3.9626111766266767, 
+      7
+    ]
+  ]
+}
+```
+
+### GET /api/v1/{user_id}/ratings/top
+ 
+This API takes specific user ID and returns the system's top 5 recommended movies in the following JSON structure.
+ 
+```{JSON, eval=FALSE}
+{
+  "recs": [
+    [
+      "Intouchables (2011)", 
+      4.189437384099611, 
+      23
+    ], 
+    [
+      "In the Heat of the Night (1967)", 
+      3.929661612183744, 
+      21
+    ], 
+    [
+      "Her (2013)", 
+      3.877955245039665, 
+      19
+    ], 
+    [
+      "True Grit (2010)", 
+      3.8740692342236978, 
+      21
+    ], 
+    [
+      "Life Is Beautiful (La Vita \u00e8 bella) (1997)", 
+      3.848678791640522, 
+      73
+    ]
+  ]
+}
+```
+
+### POST /api/v1/<int:user_id>/ratings
+
+This API allows a new movie rating to be posted to the system for a given user.  The system will add the movie rating to the backing dataset and retrain the model on the fly.  
+
+A call to this API looks as follows (using CURL):
+
+```{BASH, eval=FALSE}
+curl -H "Content-Type: application/json" -X POST -d '{"movieId": 39, "rating":1}' 
+http://localhost:8080/api/v1/13/ratings
+```
+Which will result in the following confirmation (along with an HTTP 200)
+
+```{JSON, eval=FALSE}
+{
+  "retrain_success": true
+}
+```
+
+### POST /api/v1/engine/reload-and-retrain
+
+This API allows a system admin to trigger a retraining of the model with specified parameters for the underlying ALS algo.  It also picks up the latest data on the file system so updates there will be incorporated into the model.
+
+A call to this API looks as follows (using CURL):
+
+```{BASH, eval=FALSE}
+curl -H "Content-Type: application/json" -X POST 
+-d '{"rank": 8, "num_iterations":25, "seed":5, "reg":0.15}' 
+http://localhost:8080/api/v1/engine/reload-and-retrain
+
+```
+Which will result in the following confirmation (along with an HTTP 200)
+
+```{JSON, eval=FALSE}
+{
+  "retrained": true, 
+  "trainingTime": 2.6908910274505615
+}
+```
+
+## 5 Test Methodology
+
+I split up the master ratings dataset into a training and evaluation dataset (randomly).  The predictions are generated using the training dataset while the evaluation dataset is used to provide user_id, movie_id, rating triplets to generate predictions and evaluate the difference between our model with Differential Privacy turned on and off.
+
+I've also included the best model from project 2 for comparison purposes.
+
+The results for all models across these evaluation metrics can be seen below.
+
+```{r, message=FALSE, echo=FALSE, fig.height=6, fig.width=7.5,warning=FALSE}
+# correlation
+cor1 <- cor(df$rating, df$m1_hat)
+cor2 <-cor(df$rating, df$m2_hat)
+cor3 <-cor(df$rating, df$m3_hat)
+
+# rmse
+rmse1 <- rmse(df$rating - df$m1_hat)
+rmse2 <- rmse(df$rating - df$m2_hat)
+rmse3 <- rmse(df$rating - df$m3_hat)
+
+# mae
+mae1 <- mae(df$rating - df$m1_hat)
+mae2 <- mae(df$rating - df$m2_hat)
+mae3 <- mae(df$rating - df$m3_hat)
+
+roc1<-multiclass.roc(df$rating, df$m1_hat)
+roc2<-multiclass.roc(df$rating, df$m2_hat)
+roc3<-multiclass.roc(df$rating, df$m3_hat)
+
+# auc
+auc1 <- roc1$auc[1]
+auc2 <- roc2$auc[1]
+auc3 <- roc3$auc[1]
+
+
+row1 <- c("Model 1 (DP Disabled)", round(cor1,3), round(rmse1, 3), round(mae1, 3), round(auc1, 3))
+row2 <- c("Model 2 (DP Enabled)", round(cor2,3), round(rmse2, 3), round(mae2, 3), round(auc2, 3))
+row3 <- c("Model 3 (Best from Proj2)", round(cor3,3), round(rmse3, 3), round(mae3, 3), round(auc3, 3))
+
+diags <- rbind(row1, row2, row3)
+colnames(diags) <- c("Model", "Correlation", "RMSE", "MAE", "AUC")
+rownames(diags) <- NULL
+kable(diags)
+```
+
+There are two apparent conclusions from looking at these test results.  First, Spark's reference ALS algorithm does a much better job than the Frankenstein-esque creation I spun up at the beginning of the term. It (Model 1) has the highest correlation, lowest rmse, lowest mae and highest auc.
+
+Second, the addition of the seleceted level of DP did not completely destroy the system's ability to make sound predictions. All 4 performance metrics are worse but, it seems like a useful tradeoff if it affords the system's users an added level of data protection
+
+As part of any evaluation we need to be cognizant of how are residuals are behaving (obvious patterns can point out model bias and other problems).  One such check is to ensure our residuals are distributed in a nearly normal fashion.  Lets take a quick look at the distribution of our residuals for all of the models evaluated.
+
+```{r, message=FALSE, echo=FALSE, fig.height=5.5, fig.width=7.5,warning=FALSE}
+p1 <- ggplot() + aes(df$rating - df$m1_hat)+ geom_histogram(binwidth=0.25, colour="black", fill="white") +
+  labs(x="residuals")+ ggtitle("Model 1")
+p2 <- ggplot() + aes(df$rating - df$m2_hat)+ geom_histogram(binwidth=0.25, colour="black", fill="white") +
+  labs(x="residuals")+ ggtitle("Model 2")
+
+multiplot(p1, p2, cols = 2)
+```
+
+There is a fairly normal look/feel to all of the residual sets.  While there is an amount of right skew to the residuals, it is not out of control and they're mainly influenced by 2 or 3 outliers.  There is nothing from these plots that would suggest that Spark's ALS model has any critical issues.
+
+
+## 6 Conclusion
+
+A fully operational Python web service was created to make predictions about user's movie preferences.  Future extensibility and scaling was considered (leveraging Spark) and a layer of configurable differential privacy was added to the system's predictions to help protect user identity.
+
+\pagebreak
+
+## Appendix A  Full Evaluation Dataset
+
+m1 = Spark ALS with no differntial privacy
+m2 = Spark ALS with differntial privacy
+m3 = best model from project 2
+
+
+```{r, message=FALSE, echo=FALSE, fig.height=5.5, fig.width=7.5,warning=FALSE}
+kable(df)
+```
